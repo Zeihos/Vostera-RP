@@ -12,6 +12,8 @@
 # Рабочие данные форума, Wiki и пользовательские загрузки
 Форум/private/store.json
 Вики/private/data.json
+Вики/private/data.lock
+Форум/private/store.lock
 Форум/public/uploads/
 Вики/public/uploads/
 **/private/*.sqlite

@@ -32,7 +32,7 @@ def forbidden_tracked(path: str) -> bool:
         return True
     if name == '.env' or (name.startswith('.env.') and name not in {'.env.example', '.env.sample'}):
         return True
-    if '/private/' in '/' + p and name in {'install.key', 'app.key', 'store.json', 'data.json'}:
+    if '/private/' in '/' + p and name in {'install.key', 'app.key', 'store.json', 'data.json', 'store.lock', 'data.lock'}:
         return True
     if '/private/' in '/' + p and name.endswith(('.sqlite', '.sqlite3', '.db')):
         return True
