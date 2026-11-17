@@ -28,3 +28,5 @@ jobs:
         run: python3 tools/check_repository.py
       - name: Проверить безопасную установку
         run: python3 tools/test_install_bootstrap.py
+      - name: Проверить диагностику игрового мода
+        run: python3 tools/test_mod_preflight.py

@@ -19,8 +19,23 @@ if (!is_dir($private)) {
 if (is_file($dataPath)) {
     $state = json_decode((string)file_get_contents($dataPath), true);
     if (is_array($state) && !empty($state['installed'])) {
-        fwrite(STDERR, "Wiki уже установлена; новый ключ установки запрещён.\n");
-        exit(1);
+        if (!in_array('--migrate', $argv, true)) {
+            fwrite(STDERR, "Wiki уже установлена. Для безопасного обновления выполните: php tools/prepare-install.php --migrate\n");
+            exit(1);
+        }
+        if (!is_file($appKeyPath)) {
+            $app = @fopen($appKeyPath, 'x');
+            if ($app === false) {
+                fwrite(STDERR, "Не удалось создать отдельный секрет для входа.\n");
+                exit(1);
+            }
+            fwrite($app, bin2hex(random_bytes(32)) . "\n");
+            fclose($app);
+            @chmod($appKeyPath, 0600);
+        }
+        @unlink($keyPath);
+        echo "Секрет входа Wiki подготовлен. Прежний установочный ключ удалён.\n";
+        exit(0);
     }
 }
 if (!is_file($dataPath)) {

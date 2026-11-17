@@ -20,3 +20,8 @@ php tools/prepare-install.php --rotate
 НЕ публикуйте data.json, app.key или install.key. В репозитории хранится лишь data.example.json без пользователей.
 
 Локальный запуск: php -S 127.0.0.1:8788 -t public public/router.php
+
+ОБНОВЛЕНИЕ УЖЕ УСТАНОВЛЕННОЙ WIKI
+Сначала сделайте резервную копию private/data.json и public/uploads/. Не заменяйте базу шаблоном!
+Затем выполните: php tools/prepare-install.php --migrate
+Это создаст private/app.key (если отсутствует) и удалит устаревший ключ установки, не изменяя аккаунты и статьи.

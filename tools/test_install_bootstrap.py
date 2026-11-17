@@ -46,6 +46,13 @@ def check(project: str) -> None:
         else:
             (work / 'private/store.json').write_text('{}')
         assert run_php(work, '--rotate').returncode != 0, 'Установленный проект не должен переустанавливаться'
+        if project == 'Вики':
+            (work / 'private/app.key').unlink()
+            migration = run_php(work, '--migrate')
+            assert migration.returncode == 0, migration.stderr
+            assert (work / 'private/app.key').exists()
+            assert not (work / 'private/install.key').exists()
+            assert json.loads((work / 'private/data.json').read_text())['installed'] is True
         print(f'OK: генерация, запрет повторения, ротация, блокировка после установки: {project}')
 
 
