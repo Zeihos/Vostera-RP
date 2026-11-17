@@ -1,0 +1,28 @@
+# Текстовые файлы веб-проекта имеют стабильные переводы строк.
+*.php text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# Старый Pawn может содержать Windows-1251: не менять байты автоматически.
+*.pwn -text
+*.inc -text
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.zip binary
+*.7z binary
+*.rar binary
+*.amx binary
+*.dll binary
+*.so binary
+*.exe binary
