@@ -30,3 +30,5 @@ jobs:
         run: python3 tools/test_install_bootstrap.py
       - name: Проверить диагностику игрового мода
         run: python3 tools/test_mod_preflight.py
+      - name: Проверить страницы, установку и доступ через HTTP
+        run: python3 tools/test_web_smoke.py

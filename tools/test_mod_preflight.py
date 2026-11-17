@@ -27,9 +27,15 @@ with tempfile.TemporaryDirectory() as folder:
     assert not any('Не найден #include' in x for x in state['warnings'])
     (root / 'gamemodes/vostera.pwn').write_text('#include <unknown>\nmain() {}\n')
     state = module.analyse(root)
-    assert any('unknown' in x for x in state['warnings'])
+    assert not state['ready_for_compile'] and any('unknown' in x for x in state['errors'])
+    (root / 'gamemodes/vostera.pwn').write_text('#include <Pawn.CMD>\n#include <Pawn.RakNet>\n')
+    (root / 'pawno/include/Pawn.CMD.inc').write_text('// test stub\n')
+    (root / 'pawno/include/Pawn.RakNet.inc').write_text('// test stub\n')
+    state = module.analyse(root)
+    assert state['ready_for_compile'] and state['includes_total'] == 2
+    assert not any('Pawn.CMD' in x or 'Pawn.RakNet' in x for x in state['errors'])
     (root / 'gamemodes/vostera.pwn').write_text('#include "../secret"\n')
     state = module.analyse(root)
     assert not state['ready_for_compile']
 
-print('OK: предварительная проверка Pawn — 4 сценария')
+print('OK: предварительная проверка Pawn — 5 сценариев')
