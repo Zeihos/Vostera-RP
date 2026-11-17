@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 const DATA_FILE = __DIR__ . '/data.json';
+const DATA_LOCK = __DIR__ . '/data.lock';
 const UPLOAD_PATH = __DIR__ . '/../public/uploads';
 
 function boot(): void {
@@ -31,25 +32,76 @@ function slug(string $value): string {
     $s=preg_replace('/[^a-z0-9]+/','-',$s);
     return substr(trim($s,'-'),0,84);
 }
+/**
+ * Блокировка отделена от JSON: блокировать сам data.json нельзя,
+ * так как при атомарной замене файла изменится его inode.
+ */
 function db_read(): array {
-    $fp=@fopen(DATA_FILE,'rb'); if (!$fp) { http_response_code(503); exit('Хранилище Wiki недоступно. Проверьте private/data.json.'); }
-    if (!flock($fp,LOCK_SH)) { fclose($fp); http_response_code(503); exit('Хранилище заблокировано.'); }
-    $raw=stream_get_contents($fp); flock($fp,LOCK_UN); fclose($fp);
-    $data=json_decode($raw,true); if (!is_array($data)) {http_response_code(503); exit('Ошибка чтения данных Wiki.');}
+    $lock = @fopen(DATA_LOCK, 'c+');
+    if ($lock === false) { http_response_code(503); exit('Не удалось открыть блокировку Wiki.'); }
+    if (!flock($lock, LOCK_SH)) {
+        fclose($lock);
+        http_response_code(503);
+        exit('Хранилище Wiki временно недоступно.');
+    }
+    try {
+        $raw = @file_get_contents(DATA_FILE);
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data)) {
+        http_response_code(503);
+        exit('Ошибка чтения данных Wiki. Проверьте private/data.json и резервную копию.');
+    }
     return $data;
 }
+
+/**
+ * Транзакционное сохранение: читаем под эксклюзивной блокировкой,
+ * записываем новый JSON в той же директории, затем заменяем файл.
+ * При ошибке, исключении в callback или неполной записи старый JSON остаётся нетронутым.
+ */
 function db_change(callable $fn): mixed {
-    $fp=@fopen(DATA_FILE,'c+b'); if (!$fp || !flock($fp,LOCK_EX)) {http_response_code(503); exit('Не удалось открыть хранилище для записи.');}
-    rewind($fp);$data=json_decode(stream_get_contents($fp),true);
-    if (!is_array($data)) {flock($fp,LOCK_UN);fclose($fp);http_response_code(503);exit('Ошибка формата базы.');}
-    try {$result=$fn($data);} catch(Throwable $x) {flock($fp,LOCK_UN);fclose($fp);throw $x;}
-    $serialized=json_encode($data,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_INVALID_UTF8_SUBSTITUTE);
-    if ($serialized===false) {flock($fp,LOCK_UN);fclose($fp);http_response_code(500);exit('Ошибка сериализации.');}
-    rewind($fp);ftruncate($fp,0);$written=fwrite($fp,$serialized."\n"); fflush($fp);
-    flock($fp,LOCK_UN);fclose($fp);
-    if ($written===false || $written<strlen($serialized)) {http_response_code(500);exit('Ошибка записи базы.');}
-    return $result;
+    $lock = @fopen(DATA_LOCK, 'c+');
+    if ($lock === false) throw new RuntimeException('Не удалось открыть файл блокировки Wiki.');
+    if (!flock($lock, LOCK_EX)) {
+        fclose($lock);
+        throw new RuntimeException('Не удалось заблокировать хранилище Wiki.');
+    }
+    $temp = null;
+    try {
+        $raw = @file_get_contents(DATA_FILE);
+        $data = is_string($raw) ? json_decode($raw, true) : null;
+        if (!is_array($data)) {
+            throw new RuntimeException('Ошибка чтения базы Wiki. Запись отменена.');
+        }
+        $result = $fn($data);
+        $json = json_encode(
+            $data,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE |
+            JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+        ) . "\n";
+        $temp = @tempnam(dirname(DATA_FILE), 'wiki_');
+        if ($temp === false) throw new RuntimeException('Не удалось создать временный файл Wiki.');
+        @chmod($temp, 0600);
+        $written = @file_put_contents($temp, $json, LOCK_EX);
+        if ($written !== strlen($json)) {
+            throw new RuntimeException('Не удалось полностью записать данные Wiki.');
+        }
+        if (!@rename($temp, DATA_FILE)) {
+            throw new RuntimeException('Не удалось заменить данные Wiki. Старая база сохранена.');
+        }
+        $temp = null;
+        return $result;
+    } finally {
+        if ($temp !== null && is_file($temp)) @unlink($temp);
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
 }
+
 function setting(array $db,string $key): string {
     return (string)($db['settings'][$key] ?? cfg()[$key] ?? '');
 }

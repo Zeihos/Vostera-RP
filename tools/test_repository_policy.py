@@ -15,6 +15,7 @@ spec.loader.exec_module(policy)
 BLOCKED = [
     'Форум/private/install.key', 'Вики/private/app.key',
     'Вики/private/data.json', 'Форум/private/store.json',
+    'Вики/private/data.lock', 'Форум/private/store.lock',
     'Форум/public/uploads/secret.jpg', 'Вики/public/uploads/private.png',
     'Сайт/.env', '.env.local', 'Мод/scriptfiles/serverconfig.ini',
     'Мод/gamemodes/vostera.amx', 'Мод/plugins/unknown.dll',

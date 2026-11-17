@@ -34,5 +34,7 @@ jobs:
         run: python3 tools/test_mod_preflight.py
       - name: Проверить SA-MP мониторинг по протоколу open.mp
         run: php Сайт/tests/test_samp_query.php
+      - name: Проверить безопасное сохранение Wiki
+        run: php Вики/tests/test_storage.php
       - name: Проверить страницы, установку и доступ через HTTP
         run: python3 tools/test_web_smoke.py
