@@ -1,0 +1,14 @@
+(()=>{'use strict';
+const menuBtn=document.querySelector('[data-menu-toggle]');
+if(menuBtn){const menu=document.getElementById('mobileMenu');menuBtn.addEventListener('click',()=>{const open=menu.hasAttribute('hidden');if(open)menu.removeAttribute('hidden');else menu.setAttribute('hidden','');menuBtn.setAttribute('aria-expanded',String(open));});}
+for(const b of document.querySelectorAll('[data-confirm]')){b.addEventListener('click',e=>{if(!window.confirm(b.dataset.confirm||'Подтвердить действие?'))e.preventDefault();});}
+const copy=async text=>{try{await navigator.clipboard.writeText(text);return true;}catch{const ta=document.createElement('textarea');ta.value=text;document.body.append(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok;}};
+for(const b of document.querySelectorAll('[data-copy-text]')){b.addEventListener('click',async()=>{const ok=await copy(b.dataset.copyText||'');if(ok){const old=b.textContent;b.textContent='Скопировано';setTimeout(()=>b.textContent=old,1600);}});}
+for(const b of document.querySelectorAll('[data-copy-link]')){b.addEventListener('click',async()=>{if(await copy(location.href.split('#')[0])){b.textContent='Ссылка скопирована';setTimeout(()=>b.textContent='Скопировать ссылку',1800);}});}
+const editor=document.getElementById('articleEditor');
+if(editor){const put=(prefix,suffix='',sample='текст')=>{const start=editor.selectionStart,end=editor.selectionEnd,selected=editor.value.slice(start,end)||sample;editor.setRangeText(prefix+selected+suffix,start,end,'select');editor.focus();};
+for(const b of document.querySelectorAll('[data-insert]')){b.addEventListener('click',()=>{const action=b.dataset.insert;if(action==='bold')put('**','**');if(action==='heading')put('\n## ','\n','Заголовок');if(action==='list')put('\n- ','\n','пункт списка');if(action==='link')put('[','](https://example.com)','название ссылки');if(action==='quote')put('\n> ','\n','Важная информация');});}
+const previewButton=document.querySelector('[data-preview-button]');const box=document.getElementById('articlePreview');const csrf=document.querySelector('#editorForm input[name=csrf]');
+if(previewButton&&box&&csrf){previewButton.addEventListener('click',async()=>{if(!box.hasAttribute('hidden')){box.setAttribute('hidden','');return;}previewButton.disabled=true;previewButton.textContent='Загрузка…';try{const body=new URLSearchParams({csrf:csrf.value,body:editor.value});const res=await fetch('/admin/preview',{method:'POST',body,credentials:'same-origin'});if(!res.ok)throw Error('preview');const data=await res.json();box.innerHTML=data.html;box.removeAttribute('hidden');}catch{box.textContent='Не удалось загрузить предпросмотр.';box.removeAttribute('hidden');}finally{previewButton.disabled=false;previewButton.textContent='Предпросмотр статьи';}});}
+}
+})();
