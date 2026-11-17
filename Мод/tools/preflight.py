@@ -28,13 +28,15 @@ def analyse(root: Path) -> dict:
     for m in re.finditer(r'^\s*#include\s*(?:<([^>]+)>|"([^"]+)"|([\w./-]+))', text, re.M):
         name = next(part for part in m.groups() if part)
         includes.append(name)
-        relative = Path(name + ('' if Path(name).suffix else '.inc'))
+        # Точка в Pawn.CMD / Pawn.RakNet — часть имени, а не расширение файла.
+        normalized = name.replace('\\', '/')
+        relative = Path(normalized if normalized.lower().endswith('.inc') else normalized + '.inc')
         if relative.is_absolute() or '..' in relative.parts:
             problems.append(f'Недопустимый путь подключаемой библиотеки: {name}')
             continue
         candidates = [root / 'pawno/include' / relative, root / 'gamemodes' / relative]
         if not any(c.is_file() for c in candidates):
-            warnings.append(f'Не найден #include: {name} (возможна внешняя зависимость)')
+            problems.append(f'Не найден обязательный #include: {name}')
 
     cfg = root / 'server.cfg'
     if not cfg.is_file():
