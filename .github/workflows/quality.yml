@@ -1,0 +1,32 @@
+name: Проверка VOSTERA
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Установить PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: Проверить синтаксис всех PHP-файлов
+        shell: bash
+        run: |
+          set -euo pipefail
+          find 'Сайт' 'Форум' 'Вики' -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Проверить приватные файлы и структуру
+        run: python3 tools/check_repository.py
+      - name: Проверить безопасную установку
+        run: python3 tools/test_install_bootstrap.py
+      - name: Проверить диагностику игрового мода
+        run: python3 tools/test_mod_preflight.py
