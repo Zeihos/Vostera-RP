@@ -26,6 +26,8 @@ jobs:
           find 'Сайт' 'Форум' 'Вики' -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Проверить приватные файлы и структуру
         run: python3 tools/check_repository.py
+      - name: Проверить правила публичного репозитория
+        run: python3 tools/test_repository_policy.py
       - name: Проверить безопасную установку
         run: python3 tools/test_install_bootstrap.py
       - name: Проверить диагностику игрового мода

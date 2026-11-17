@@ -1,21 +1,41 @@
-# Ключи, созданные для конкретного сервера (никогда не хранить в Git)
+# Ключи и локальные конфигурации
 **/private/install.key
 **/private/app.key
-# Рабочие хранилища учётных записей, сообщений и статей
+.env
+.env.*
+!.env.example
+!.env.sample
+**/secrets/
+**/*.pem
+**/*.key
+
+# Рабочие данные форума, Wiki и пользовательские загрузки
 Форум/private/store.json
 Вики/private/data.json
-# Файлы пользователей
 Форум/public/uploads/
 Вики/public/uploads/
-# Тесты, логи, сборки
-*.log
-*.tmp
-*.bak
-__pycache__/
-*.pyc
-# Скомпилированные файлы и локальная конфигурация сервера
-Мод/gamemodes/*.amx
+**/private/*.sqlite
+**/private/*.sqlite3
+**/private/*.db
+
+# Игровой сервер: приватные настройки, сборки, плагины
 Мод/scriptfiles/serverconfig.ini
+Мод/gamemodes/*.amx
 Мод/plugins/*.dll
 Мод/plugins/*.so
 Мод/*.exe
+
+# Служебные файлы
+*.log
+*.tmp
+*.bak
+*.swp
+*.orig
+*.sql.gz
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
