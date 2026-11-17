@@ -30,7 +30,7 @@ php tools/prepare-install.php
 
 ## Автоматические проверки
 
-GitHub Actions выполняет синтаксическую проверку PHP, контроль структуры, тест безопасной генерации ключей, диагностику игрового мода и **HTTP smoke-тесты сайта, форума и Wiki** (установка, CSRF, админ-панель).
+GitHub Actions выполняет синтаксическую проверку PHP, контроль структуры, тест безопасной генерации ключей, диагностику игрового мода и **HTTP smoke-тесты сайта, форума и Wiki** (установка, CSRF, админ-панель), а также 11 проверок парсера SA-MP/open.mp для мониторинга онлайна.
 
 Локально (требуются PHP 8.1+ и Python 3.10+):
 
@@ -39,6 +39,7 @@ python3 tools/check_repository.py
 python3 tools/test_install_bootstrap.py
 python3 tools/test_mod_preflight.py
 python3 tools/test_web_smoke.py
+php Сайт/tests/test_samp_query.php
 ```
 
 **Успешные проверки веб-сервисов не означают, что игровой мод собран или протестирован.**
