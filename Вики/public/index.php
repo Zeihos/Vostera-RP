@@ -32,12 +32,15 @@ if ($method==='POST') {
             return $id;
         });
         if(!$id)redirect('/login');
+        @unlink(dirname(__DIR__).'/private/install.key');
         session_regenerate_id(true);$_SESSION['uid']=$id;flash('Wiki установлена. Вы вошли как владелец.');redirect('/admin');
     }
     if ($path==='/login') {
         $login=post_string('login',40);$pwd=(string)($_POST['password']??'');
         $ip=(string)($_SERVER['REMOTE_ADDR']??'unknown');
-        $bucket=hash_hmac('sha256',$ip,trim((string)@file_get_contents(dirname(__DIR__).'/private/install.key')));
+        $secret=trim((string)@file_get_contents(dirname(__DIR__).'/private/app.key'));
+        if(strlen($secret)<64){http_response_code(503);exit('Wiki не подготовлена. Выполните php tools/prepare-install.php');}
+        $bucket=hash_hmac('sha256',$ip,$secret);
         $status=db_change(function(&$data)use($bucket,$login,$pwd){
             $now=time(); foreach($data['login_guard'] as $k=>$v){if(($v['until']??0)<$now)unset($data['login_guard'][$k]);}
             $attempt=$data['login_guard'][$bucket]??['count'=>0,'until'=>$now+900];
