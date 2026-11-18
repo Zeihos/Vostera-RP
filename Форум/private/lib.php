@@ -32,6 +32,42 @@ function admin(?array $u): bool { return $u && $u['role']==='admin'; }
 function can_write(?array $u, array $f): bool { return $u && role_level($u['role'])>=role_level($f['write_role'] ?? 'user') && !(($u['banned_until'] ?? 0)>now()); }
 function self_or_staff(?array $u, int $id): bool { return $u && (staff($u) || $u['id']===$id); }
 function banned(?array $u): bool { return $u && (int)($u['banned_until']??0)>now(); }
+/**
+ * Повторная проверка полномочий на живой версии состояния.
+ * Использовать ВНУТРИ state_write(), не только перед вызовом.
+ * Иначе пост может появиться после закрытия темы, удаления раздела или блокировки.
+ */
+function forum_live_actor(array $state, int $userId): ?array {
+    foreach (($state['users'] ?? []) as $actor) {
+        if ((int)$actor['id'] === $userId) {
+            return banned($actor) ? null : $actor;
+        }
+    }
+    return null;
+}
+function forum_can_create_topic(array $state, int $userId, int $forumId): bool {
+    $actor = forum_live_actor($state, $userId);
+    $forum = forum_by_id($state, $forumId);
+    return $actor !== null && $forum !== null && can_write($actor, $forum);
+}
+function forum_can_reply(array $state, int $userId, int $topicId): bool {
+    $actor = forum_live_actor($state, $userId);
+    $topic = topic_by_id($state, $topicId);
+    if ($actor === null || $topic === null) return false;
+    $forum = forum_by_id($state, (int)$topic['forum_id']);
+    if ($forum === null) return false;
+    if (!can_write($actor, $forum) && !staff($actor)) return false;
+    return empty($topic['locked']) || staff($actor);
+}
+function forum_can_edit_post(array $state, int $userId, int $postId): bool {
+    $actor = forum_live_actor($state, $userId);
+    $post = post_by_id($state, $postId);
+    if ($actor === null || $post === null || !empty($post['hidden'])) return false;
+    if (!topic_by_id($state, (int)$post['topic_id'])) return false;
+    if (!self_or_staff($actor, (int)$post['user_id'])) return false;
+    return staff($actor) || now() - (int)$post['created_at'] <= 1800;
+}
+
 function js_date(int $timestamp): string { return date('d.m.Y в H:i', $timestamp); }
 function summary(string $text, int $len=120): string {
     $text=preg_replace('/\s+/u', ' ',trim($text));
