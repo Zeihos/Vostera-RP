@@ -121,8 +121,19 @@ if($isPost){
     if($route==='profile'){
         require_user($user);$about=clean('about',500);if(text_len($about)>500)fail(400,'Слишком длинное описание.');
         $old=(string)($_POST['current_password']??'');$new=(string)($_POST['new_password']??'');
-        if($new!=='' && (strlen($new)<10 || !password_verify($old,$user['password']))){note('Новый пароль должен быть длиной от 10 символов; для смены укажите текущий пароль.','bad');redirect('/settings');}
-        state_write(function(&$s)use($user,$about,$new){foreach($s['users']as &$u)if($u['id']===$user['id']){$u['about']=$about;if($new!=='')$u['password']=password_hash($new,PASSWORD_DEFAULT);break;}unset($u);});
+        if($new!=='' && (strlen($new)<10 || strlen($new)>256)){note('Новый пароль должен содержать от 10 до 256 символов.','bad');redirect('/settings');}
+        $updated = state_write(function(&$s)use($user,$about,$new,$old){
+            if(!forum_can_update_profile($s, (int)$user['id'], $old, $new)) return false;
+            foreach($s['users'] as &$u) if((int)$u['id']===(int)$user['id']){
+                $u['about']=$about;
+                if($new!=='') $u['password']=password_hash($new,PASSWORD_DEFAULT);
+                return true;
+            }
+            unset($u);
+            return false;
+        });
+        if(!$updated){note('Аккаунт недоступен или текущий пароль уже изменён. Повторите попытку.','bad');redirect('/settings');}
+        if($new!=='') session_regenerate_id(true);
         note('Настройки профиля обновлены.');redirect('/settings');
     }
     if($route==='mod'){

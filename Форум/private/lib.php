@@ -68,6 +68,18 @@ function forum_can_edit_post(array $state, int $userId, int $postId): bool {
     return staff($actor) || now() - (int)$post['created_at'] <= 1800;
 }
 
+/**
+ * Проверка актуального пароля под блокировкой state_write().
+ * Не разрешаем старому запросу перезаписать пароль, уже сменённый другим запросом.
+ */
+function forum_can_update_profile(array $state, int $userId, string $currentPassword, string $newPassword): bool {
+    $actor = forum_live_actor($state, $userId);
+    if ($actor === null) return false;
+    if ($newPassword === '') return true;
+    return strlen($newPassword) >= 10 && strlen($newPassword) <= 256
+        && password_verify($currentPassword, (string)($actor['password'] ?? ''));
+}
+
 function js_date(int $timestamp): string { return date('d.m.Y в H:i', $timestamp); }
 function summary(string $text, int $len=120): string {
     $text=preg_replace('/\s+/u', ' ',trim($text));
