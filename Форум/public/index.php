@@ -72,6 +72,7 @@ if($isPost){
         $title=clean('title',150);$body=clean('body',12000);
         if(text_len($title)<5 || text_len($title)>120 || text_len($body)<10 || text_len($body)>12000){note('Название темы: 5–120 символов. Сообщение: 10–12000 символов.','bad');redirect('/new?forum='.$forumId);}
         $result=state_write(function(&$s)use($user,$forumId,$title,$body){
+            if(!forum_can_create_topic($s, (int)$user['id'], $forumId)) return ['error'=>'Раздел недоступен или права на публикацию изменились.'];
             if(throttled($s,'new',10,3600)) return ['error'=>'Слишком много тем за короткое время.'];
             $tid=next_id($s,'topics');$pid=next_id($s,'posts');
             $s['topics'][]=['id'=>$tid,'forum_id'=>$forumId,'author_id'=>$user['id'],'title'=>$title,'created_at'=>now(),'updated_at'=>now(),'views'=>0,'pinned'=>false,'locked'=>false];
@@ -87,10 +88,12 @@ if($isPost){
         if($topic['locked']&&!staff($user))fail(403,'Тема закрыта для ответов.');
         $body=clean('body',12000);if(text_len($body)<2 || text_len($body)>12000){note('Ответ должен содержать от 2 до 12000 символов.','bad');redirect('/topic/'.$tid);}
         $result=state_write(function(&$s)use($user,$tid,$body){
+            if(!forum_can_reply($s, (int)$user['id'], $tid)) return -1;
             if(throttled($s,'reply',25,3600))return false;
             foreach($s['topics'] as &$t) if($t['id']===$tid) {$t['updated_at']=now();break;}unset($t);
             $id=next_id($s,'posts');$s['posts'][]=['id'=>$id,'topic_id'=>$tid,'user_id'=>$user['id'],'body'=>$body,'created_at'=>now(),'updated_at'=>null,'hidden'=>false];return $id;
         });
+        if($result === -1) fail(403,'Тема закрыта, удалена или права на ответ изменились.');
         if(!$result){note('Слишком много сообщений за короткое время.','bad');redirect('/topic/'.$tid);}
         note('Ответ опубликован.');redirect('/topic/'.$tid.'?page='.max(1,(int)ceil((count(posts_in_topic($db,$tid))+1)/15)).'#post-'.$result);
     }
@@ -99,7 +102,14 @@ if($isPost){
         if(!self_or_staff($user,$post['user_id'])) fail(403,'Нет права на редактирование.');
         if(!staff($user) && now()-$post['created_at']>1800)fail(403,'Время редактирования истекло (30 минут).');
         $body=clean('body',12000);if(text_len($body)<2||text_len($body)>12000){note('Сообщение должно содержать от 2 до 12000 символов.','bad');redirect('/edit-post/'.$entityId);}
-        state_write(function(&$s)use($entityId,$body,$user){foreach($s['posts'] as &$p)if($p['id']===$entityId){$p['body']=$body;$p['updated_at']=now();break;}unset($p);log_action($s,$user['id'],'Редактирование сообщения #'.$entityId);});
+        $saved = state_write(function(&$s)use($entityId,$body,$user){
+            if(!forum_can_edit_post($s, (int)$user['id'], $entityId)) return false;
+            foreach($s['posts'] as &$p) if($p['id']===$entityId) {$p['body']=$body;$p['updated_at']=now();break;}
+            unset($p);
+            log_action($s,$user['id'],'Редактирование сообщения #'.$entityId);
+            return true;
+        });
+        if(!$saved) fail(403,'Сообщение удалено, скрыто или право на редактирование изменилось.');
         note('Изменения сохранены.');redirect('/topic/'.$post['topic_id'].'#post-'.$entityId);
     }
     if($route==='report'){
@@ -111,8 +121,19 @@ if($isPost){
     if($route==='profile'){
         require_user($user);$about=clean('about',500);if(text_len($about)>500)fail(400,'Слишком длинное описание.');
         $old=(string)($_POST['current_password']??'');$new=(string)($_POST['new_password']??'');
-        if($new!=='' && (strlen($new)<10 || !password_verify($old,$user['password']))){note('Новый пароль должен быть длиной от 10 символов; для смены укажите текущий пароль.','bad');redirect('/settings');}
-        state_write(function(&$s)use($user,$about,$new){foreach($s['users']as &$u)if($u['id']===$user['id']){$u['about']=$about;if($new!=='')$u['password']=password_hash($new,PASSWORD_DEFAULT);break;}unset($u);});
+        if($new!=='' && (strlen($new)<10 || strlen($new)>256)){note('Новый пароль должен содержать от 10 до 256 символов.','bad');redirect('/settings');}
+        $updated = state_write(function(&$s)use($user,$about,$new,$old){
+            if(!forum_can_update_profile($s, (int)$user['id'], $old, $new)) return false;
+            foreach($s['users'] as &$u) if((int)$u['id']===(int)$user['id']){
+                $u['about']=$about;
+                if($new!=='') $u['password']=password_hash($new,PASSWORD_DEFAULT);
+                return true;
+            }
+            unset($u);
+            return false;
+        });
+        if(!$updated){note('Аккаунт недоступен или текущий пароль уже изменён. Повторите попытку.','bad');redirect('/settings');}
+        if($new!=='') session_regenerate_id(true);
         note('Настройки профиля обновлены.');redirect('/settings');
     }
     if($route==='mod'){
