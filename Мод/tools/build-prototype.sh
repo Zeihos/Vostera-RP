@@ -31,7 +31,12 @@ fi
 git -C "$INCLUDES" -c advice.detachedHead=false checkout --quiet "$STDLIB_REV"
 mkdir -p "$ROOT/Мод/build"
 OUTPUT="$ROOT/Мод/build/vostera_starter.amx"
-export LD_LIBRARY_PATH="$(dirname "$PAWNCC"):${LD_LIBRARY_PATH:-}"
+PAWNLIB="$(find "$TOOL_DIR/compiler" -type f -name libpawnc.so -print -quit)"
+if [ -z "$PAWNLIB" ]; then
+  echo "ERROR: libpawnc.so missing from official archive" >&2
+  exit 1
+fi
+export LD_LIBRARY_PATH="$(dirname "$PAWNLIB"):$(dirname "$PAWNCC"):${LD_LIBRARY_PATH:-}"
 echo "Компиляция оригинального VOSTERA Starter (не полного игрового мода)..."
 "$PAWNCC" -Z- "-i$INCLUDES" "-o$OUTPUT" "$ROOT/Мод/prototypes/vostera_starter.pwn"
 if [ ! -s "$OUTPUT" ]; then
