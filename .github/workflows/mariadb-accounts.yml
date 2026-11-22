@@ -1,0 +1,52 @@
+name: MariaDB — аккаунты и безопасные выплаты
+
+on:
+  push:
+    paths:
+      - 'Мод/sql/**'
+      - 'Мод/tests/test_mariadb.sh'
+      - '.github/workflows/mariadb-accounts.yml'
+  pull_request:
+    paths:
+      - 'Мод/sql/**'
+      - 'Мод/tests/test_mariadb.sh'
+      - '.github/workflows/mariadb-accounts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-root-not-for-production
+          MARIADB_DATABASE: vostera_ci
+          MARIADB_USER: vostera_ci
+          MARIADB_PASSWORD: ci-only-not-for-production
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Установить клиент MariaDB
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mariadb-client
+      - name: Применить миграции и проверить выплаты
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: vostera_ci
+          DB_USER: vostera_ci
+          DB_PASSWORD: ci-only-not-for-production
+        run: bash Мод/tests/test_mariadb.sh
