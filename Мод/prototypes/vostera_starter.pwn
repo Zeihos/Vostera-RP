@@ -14,10 +14,52 @@
 #define VOSTERA_JOB_MECHANIC 2
 #define VOSTERA_WORK_COOLDOWN 90
 #define VOSTERA_RP_DISTANCE 30.0
+#define VOSTERA_COURIER_REWARD 125
+#define VOSTERA_MECHANIC_REWARD 100
+#define VOSTERA_DELIVERY_COUNT 3
+
+// Courier destinations in Los Santos. Only one player checkpoint is active.
+new Float:g_CourierStops[VOSTERA_DELIVERY_COUNT][3] =
+{
+    {2115.5767, -1773.9658, 13.3895},
+    {1836.1743, -1682.6177, 13.3472},
+    {2366.1179, -1888.3264, 13.3828}
+};
+
+// Temporary mechanic workbench; near the starting vehicle.
+#define VOSTERA_SERVICE_X 2493.7583
+#define VOSTERA_SERVICE_Y -1683.6482
+#define VOSTERA_SERVICE_Z 12.9099
+
 
 new g_PlayerJob[MAX_PLAYERS];
 new g_LastWork[MAX_PLAYERS];
 new g_WorkCount[MAX_PLAYERS];
+new bool:g_CourierActive[MAX_PLAYERS];
+new g_CourierDestination[MAX_PLAYERS];
+
+stock VosteraCancelDelivery(playerid)
+{
+    if (g_CourierActive[playerid]) DisablePlayerCheckpoint(playerid);
+    g_CourierActive[playerid] = false;
+    g_CourierDestination[playerid] = -1;
+    return 1;
+}
+
+stock VosteraCompleteWork(playerid, reward)
+{
+    g_LastWork[playerid] = gettime();
+    g_WorkCount[playerid]++;
+    GivePlayerMoney(playerid, reward);
+    SetPlayerScore(playerid, g_WorkCount[playerid]);
+    return 1;
+}
+
+stock bool:VosteraCanWorkInWorld(playerid)
+{
+    return GetPlayerInterior(playerid) == 0 && GetPlayerVirtualWorld(playerid) == 0;
+}
+
 
 main()
 {
@@ -39,6 +81,9 @@ public OnPlayerConnect(playerid)
     g_PlayerJob[playerid] = VOSTERA_JOB_NONE;
     g_LastWork[playerid] = 0;
     g_WorkCount[playerid] = 0;
+    // A reused player slot must never inherit a checkpoint or task.
+    g_CourierActive[playerid] = false;
+    g_CourierDestination[playerid] = -1;
     SetPlayerScore(playerid, 0);
     SendClientMessage(playerid, VOSTERA_COLOR_INFO,
         "VOSTERA | Development prototype. /help - commands; no progress is saved.");
@@ -48,6 +93,7 @@ public OnPlayerConnect(playerid)
 public OnPlayerDisconnect(playerid, reason)
 {
     // Player IDs are reused; never retain a previous player's session state.
+    VosteraCancelDelivery(playerid);
     g_PlayerJob[playerid] = VOSTERA_JOB_NONE;
     g_LastWork[playerid] = 0;
     g_WorkCount[playerid] = 0;
@@ -56,9 +102,38 @@ public OnPlayerDisconnect(playerid, reason)
 
 public OnPlayerSpawn(playerid)
 {
+    // Death cancels an unfinished delivery; never reward on a stale checkpoint.
+    VosteraCancelDelivery(playerid);
     SetPlayerColor(playerid, VOSTERA_COLOR_WHITE);
     SendClientMessage(playerid, VOSTERA_COLOR_INFO,
         "VOSTERA | Use /job courier or /job mechanic to test a temporary job.");
+    return 1;
+}
+
+public OnPlayerEnterCheckpoint(playerid)
+{
+    if (!g_CourierActive[playerid]) return 1;
+    if (g_PlayerJob[playerid] != VOSTERA_JOB_COURIER || !VosteraCanWorkInWorld(playerid))
+    {
+        VosteraCancelDelivery(playerid);
+        return 1;
+    }
+    new destination = g_CourierDestination[playerid];
+    if (destination < 0 || destination >= VOSTERA_DELIVERY_COUNT)
+    {
+        VosteraCancelDelivery(playerid);
+        return 1;
+    }
+    // Verify the actual position, not only the callback invocation.
+    if (GetPlayerDistanceFromPoint(playerid,
+        g_CourierStops[destination][0],
+        g_CourierStops[destination][1],
+        g_CourierStops[destination][2]) > 7.0) return 1;
+
+    VosteraCancelDelivery(playerid);
+    VosteraCompleteWork(playerid, VOSTERA_COURIER_REWARD);
+    SendClientMessage(playerid, VOSTERA_COLOR_INFO,
+        "Courier delivery completed: $125. This payout is not saved.");
     return 1;
 }
 
@@ -96,7 +171,7 @@ public OnPlayerCommandText(playerid, cmdtext[])
     {
         SendClientMessage(playerid, VOSTERA_COLOR_INFO, "VOSTERA | Available prototype commands:");
         SendClientMessage(playerid, VOSTERA_COLOR_WHITE, "/stats, /rules, /me <action>, /do <scene>");
-        SendClientMessage(playerid, VOSTERA_COLOR_WHITE, "/job courier, /job mechanic, /job none, /work");
+        SendClientMessage(playerid, VOSTERA_COLOR_WHITE, "/job courier, /job mechanic, /job none, /work, /cancelwork");
         return 1;
     }
     if (!strcmp(cmdtext, "/rules", true))
@@ -119,20 +194,34 @@ public OnPlayerCommandText(playerid, cmdtext[])
     }
     if (!strcmp(cmdtext, "/job courier", true))
     {
+        VosteraCancelDelivery(playerid);
         g_PlayerJob[playerid] = VOSTERA_JOB_COURIER;
         SendClientMessage(playerid, VOSTERA_COLOR_INFO, "You are now a courier. /work to test a task.");
         return 1;
     }
     if (!strcmp(cmdtext, "/job mechanic", true))
     {
+        VosteraCancelDelivery(playerid);
         g_PlayerJob[playerid] = VOSTERA_JOB_MECHANIC;
         SendClientMessage(playerid, VOSTERA_COLOR_INFO, "You are now a mechanic. /work to test a task.");
         return 1;
     }
     if (!strcmp(cmdtext, "/job none", true))
     {
+        VosteraCancelDelivery(playerid);
         g_PlayerJob[playerid] = VOSTERA_JOB_NONE;
         SendClientMessage(playerid, VOSTERA_COLOR_INFO, "You left your temporary job.");
+        return 1;
+    }
+    if (!strcmp(cmdtext, "/cancelwork", true))
+    {
+        if (!g_CourierActive[playerid])
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR, "No delivery is active.");
+            return 1;
+        }
+        VosteraCancelDelivery(playerid);
+        SendClientMessage(playerid, VOSTERA_COLOR_INFO, "Delivery cancelled. No payment awarded.");
         return 1;
     }
     if (!strcmp(cmdtext, "/work", true))
@@ -142,21 +231,76 @@ public OnPlayerCommandText(playerid, cmdtext[])
             SendClientMessage(playerid, VOSTERA_COLOR_ERROR, "Choose a job first: /job courier or /job mechanic.");
             return 1;
         }
+        if (!VosteraCanWorkInWorld(playerid))
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR, "Work is available only in the main world/interior.");
+            return 1;
+        }
+        if (g_CourierActive[playerid])
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR, "Finish or cancel your current delivery first.");
+            return 1;
+        }
         new now = gettime();
         if (g_LastWork[playerid] != 0 && now - g_LastWork[playerid] < VOSTERA_WORK_COOLDOWN)
         {
             new output[100];
-            format(output, sizeof output, "Wait %d seconds before the next temporary task.",
+            format(output, sizeof output, "Wait %d seconds before the next task.",
                 VOSTERA_WORK_COOLDOWN - (now - g_LastWork[playerid]));
             SendClientMessage(playerid, VOSTERA_COLOR_ERROR, output);
             return 1;
         }
-        g_LastWork[playerid] = now;
-        g_WorkCount[playerid]++;
-        GivePlayerMoney(playerid, 125);
-        SetPlayerScore(playerid, g_WorkCount[playerid]);
+        if (g_PlayerJob[playerid] == VOSTERA_JOB_COURIER)
+        {
+            new destination = g_WorkCount[playerid] % VOSTERA_DELIVERY_COUNT;
+            if (!SetPlayerCheckpoint(playerid,
+                g_CourierStops[destination][0],
+                g_CourierStops[destination][1],
+                g_CourierStops[destination][2], 6.0))
+            {
+                SendClientMessage(playerid, VOSTERA_COLOR_ERROR, "Failed to start the delivery.");
+                return 1;
+            }
+            g_CourierDestination[playerid] = destination;
+            g_CourierActive[playerid] = true;
+            SendClientMessage(playerid, VOSTERA_COLOR_INFO,
+                "Courier task started. Reach the red checkpoint to receive $125.");
+            return 1;
+        }
+        if (GetPlayerState(playerid) != PLAYER_STATE_DRIVER)
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR,
+                "Mechanic: drive a damaged vehicle to the workshop near the spawn.");
+            return 1;
+        }
+        if (GetPlayerDistanceFromPoint(playerid,
+            VOSTERA_SERVICE_X, VOSTERA_SERVICE_Y, VOSTERA_SERVICE_Z) > 15.0)
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR,
+                "Mechanic: visit the workshop next to the starting car.");
+            return 1;
+        }
+        new vehicleid = GetPlayerVehicleID(playerid);
+        if (vehicleid <= 0)
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR, "No vehicle to repair.");
+            return 1;
+        }
+        new Float:health;
+        if (!GetVehicleHealth(vehicleid, health) || health >= 950.0)
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR,
+                "The vehicle does not need repairs (health must be below 950).");
+            return 1;
+        }
+        if (!RepairVehicle(vehicleid))
+        {
+            SendClientMessage(playerid, VOSTERA_COLOR_ERROR, "Vehicle repair failed.");
+            return 1;
+        }
+        VosteraCompleteWork(playerid, VOSTERA_MECHANIC_REWARD);
         SendClientMessage(playerid, VOSTERA_COLOR_INFO,
-            "Test task completed: $125 (session-only). No tasks/payouts are persisted.");
+            "Mechanic task completed: vehicle repaired, $100 (session-only).");
         return 1;
     }
     if (strfind(cmdtext, "/me ", true) == 0 && strlen(cmdtext) > 4)
