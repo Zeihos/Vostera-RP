@@ -4,12 +4,12 @@ on:
   push:
     paths:
       - 'Мод/prototypes/**'
-      - 'Мод/tools/build-prototype.sh'
+      - 'Мод/tools/**'
       - '.github/workflows/pawn-starter.yml'
   pull_request:
     paths:
       - 'Мод/prototypes/**'
-      - 'Мод/tools/build-prototype.sh'
+      - 'Мод/tools/**'
       - '.github/workflows/pawn-starter.yml'
   workflow_dispatch:
 
@@ -25,6 +25,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Скомпилировать оригинальный прототип Pawn
         run: bash Мод/tools/build-prototype.sh
+      - name: Установить 32-битные библиотеки для open.mp
+        shell: bash
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libc6:i386 libstdc++6:i386
+      - name: Проверить запуск open.mp и UDP-ответ
+        run: bash Мод/tools/run-openmp-smoke.sh
       - name: Сохранить тестовый AMX
         uses: actions/upload-artifact@v4
         with:
