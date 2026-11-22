@@ -20,6 +20,7 @@ checks={
     'Compiler version pinned': 'v3.10.11' in build and '13977433acb1dfb23e3ec6354f622115d5073e97aced9395058a9db59d2564c2' in build,
     'Dependencies pinned': '17c1b0191195cb0b59a820135fbca622c84129dd' in build,
     'AMX validation': 'if [ ! -s "$OUTPUT" ]' in build,
+    'Warning-free compilation': "grep -Eiq" in build and "compile.log" in build,
     'CI artifact': 'vostera-starter-amx' in ci,
     'No release claim': 'prototype' in ci.lower() or 'прототип' in ci.lower(),
 }

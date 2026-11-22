@@ -28,7 +28,7 @@ main()
 public OnGameModeInit()
 {
     SetGameModeText("VOSTERA | Prototype");
-    AddPlayerClass(26, 2495.3547, -1688.2319, 13.6774, 351.1646, 0, 0, 0, 0, 0, 0);
+    AddPlayerClass(26, 2495.3547, -1688.2319, 13.6774, 351.1646);
     AddStaticVehicle(466, 2493.7583, -1683.6482, 12.9099, 270.8069, -1, -1);
     DisableInteriorEnterExits();
     return 1;

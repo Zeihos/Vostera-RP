@@ -38,7 +38,11 @@ if [ -z "$PAWNLIB" ]; then
 fi
 export LD_LIBRARY_PATH="$(dirname "$PAWNLIB"):$(dirname "$PAWNCC"):${LD_LIBRARY_PATH:-}"
 echo "Компиляция оригинального VOSTERA Starter (не полного игрового мода)..."
-"$PAWNCC" -Z- "-i$INCLUDES" "-o$OUTPUT" "$ROOT/Мод/prototypes/vostera_starter.pwn"
+"$PAWNCC" -Z- "-i$INCLUDES" "-o$OUTPUT" "$ROOT/Мод/prototypes/vostera_starter.pwn" 2>&1 | tee "$TOOL_DIR/compile.log"
+if grep -Eiq '(^|[[:space:]])(warning|error) [0-9]+:' "$TOOL_DIR/compile.log"; then
+  echo "ERROR: Pawn compilation produced warnings/errors; correct them before release" >&2
+  exit 1
+fi
 if [ ! -s "$OUTPUT" ]; then
   echo "ERROR: AMX was not generated" >&2
   exit 1
