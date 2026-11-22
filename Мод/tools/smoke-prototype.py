@@ -119,6 +119,10 @@ def run(server: Path, directory: Path) -> None:
                         process.wait()
             print("=== stdout ===\n" + log_tail(stdout))
             print("=== server log ===\n" + log_tail(directory / "vostera-smoke.log"))
+    all_logs = log_tail(stdout) + "\n" + log_tail(directory / "vostera-smoke.log")
+    if "VOSTERA-SELFTEST:FAIL" in all_logs or "VOSTERA-SELFTEST:PASS 7/7" not in all_logs:
+        raise RuntimeError("Pawn self-test не подтвердил правила курьерской работы и cooldown")
+    print("OK: лог игрового AMX подтвердил 7/7 проверок логики времени")
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["--self-test"]:

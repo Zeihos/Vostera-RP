@@ -17,6 +17,11 @@
 #define VOSTERA_COURIER_REWARD 125
 #define VOSTERA_MECHANIC_REWARD 100
 #define VOSTERA_DELIVERY_COUNT 3
+#define VOSTERA_DELIVERY_TIMEOUT 600
+#define VOSTERA_DEPOT_DISTANCE 20.0
+#define VOSTERA_DEPOT_X 2495.3547
+#define VOSTERA_DEPOT_Y -1688.2319
+#define VOSTERA_DEPOT_Z 13.6774
 
 // Courier destinations in Los Santos. Only one player checkpoint is active.
 new Float:g_CourierStops[VOSTERA_DELIVERY_COUNT][3] =
@@ -37,12 +42,43 @@ new g_LastWork[MAX_PLAYERS];
 new g_WorkCount[MAX_PLAYERS];
 new bool:g_CourierActive[MAX_PLAYERS];
 new g_CourierDestination[MAX_PLAYERS];
+new g_DeliveryStart[MAX_PLAYERS];
+
+// Pure predicates: verified by the real open.mp startup smoke test.
+stock bool:VosteraDeliveryExpired(startTime, currentTime)
+{
+    return startTime <= 0 || currentTime < startTime ||
+        currentTime - startTime >= VOSTERA_DELIVERY_TIMEOUT;
+}
+
+stock bool:VosteraWorkCooldown(lastWork, currentTime)
+{
+    return lastWork != 0 &&
+        (currentTime < lastWork || currentTime - lastWork < VOSTERA_WORK_COOLDOWN);
+}
+
+stock VosteraPrototypeSelfTest()
+{
+    new passed = 0;
+    if (VosteraDeliveryExpired(0, 100)) passed++;
+    if (VosteraDeliveryExpired(100, 99)) passed++;
+    if (!VosteraDeliveryExpired(100, 699)) passed++;
+    if (VosteraDeliveryExpired(100, 700)) passed++;
+    if (!VosteraWorkCooldown(0, 100)) passed++;
+    if (VosteraWorkCooldown(100, 189)) passed++;
+    if (!VosteraWorkCooldown(100, 190)) passed++;
+    if (passed == 7) print("VOSTERA-SELFTEST:PASS 7/7");
+    else print("VOSTERA-SELFTEST:FAIL");
+    return passed;
+}
+
 
 stock VosteraCancelDelivery(playerid)
 {
     if (g_CourierActive[playerid]) DisablePlayerCheckpoint(playerid);
     g_CourierActive[playerid] = false;
     g_CourierDestination[playerid] = -1;
+    g_DeliveryStart[playerid] = 0;
     return 1;
 }
 
@@ -73,6 +109,7 @@ public OnGameModeInit()
     AddPlayerClass(26, 2495.3547, -1688.2319, 13.6774, 351.1646);
     AddStaticVehicle(466, 2493.7583, -1683.6482, 12.9099, 270.8069, -1, -1);
     DisableInteriorEnterExits();
+    VosteraPrototypeSelfTest();
     return 1;
 }
 
@@ -84,6 +121,7 @@ public OnPlayerConnect(playerid)
     // A reused player slot must never inherit a checkpoint or task.
     g_CourierActive[playerid] = false;
     g_CourierDestination[playerid] = -1;
+    g_DeliveryStart[playerid] = 0;
     SetPlayerScore(playerid, 0);
     SendClientMessage(playerid, VOSTERA_COLOR_INFO,
         "VOSTERA | Development prototype. /help - commands; no progress is saved.");
@@ -116,6 +154,13 @@ public OnPlayerEnterCheckpoint(playerid)
     if (g_PlayerJob[playerid] != VOSTERA_JOB_COURIER || !VosteraCanWorkInWorld(playerid))
     {
         VosteraCancelDelivery(playerid);
+        return 1;
+    }
+    if (VosteraDeliveryExpired(g_DeliveryStart[playerid], gettime()))
+    {
+        VosteraCancelDelivery(playerid);
+        SendClientMessage(playerid, VOSTERA_COLOR_ERROR,
+            "Delivery expired after 10 minutes. Return to depot and start a new route.");
         return 1;
     }
     new destination = g_CourierDestination[playerid];
@@ -171,7 +216,7 @@ public OnPlayerCommandText(playerid, cmdtext[])
     {
         SendClientMessage(playerid, VOSTERA_COLOR_INFO, "VOSTERA | Available prototype commands:");
         SendClientMessage(playerid, VOSTERA_COLOR_WHITE, "/stats, /rules, /me <action>, /do <scene>");
-        SendClientMessage(playerid, VOSTERA_COLOR_WHITE, "/job courier, /job mechanic, /job none, /work, /cancelwork");
+        SendClientMessage(playerid, VOSTERA_COLOR_WHITE, "/job courier, /job mechanic, /job none, /work, /workstatus, /cancelwork");
         return 1;
     }
     if (!strcmp(cmdtext, "/rules", true))
@@ -224,6 +269,44 @@ public OnPlayerCommandText(playerid, cmdtext[])
         SendClientMessage(playerid, VOSTERA_COLOR_INFO, "Delivery cancelled. No payment awarded.");
         return 1;
     }
+    if (!strcmp(cmdtext, "/workstatus", true))
+    {
+        new status[150];
+        new currentTime = gettime();
+        if (g_CourierActive[playerid])
+        {
+            if (VosteraDeliveryExpired(g_DeliveryStart[playerid], currentTime))
+            {
+                VosteraCancelDelivery(playerid);
+                SendClientMessage(playerid, VOSTERA_COLOR_ERROR,
+                    "Delivery expired. Return to the depot for a new route.");
+                return 1;
+            }
+            format(status, sizeof status,
+                "Courier: drop-off #%d/3, %d sec remaining. /cancelwork to abort.",
+                g_CourierDestination[playerid] + 1,
+                VOSTERA_DELIVERY_TIMEOUT - (currentTime - g_DeliveryStart[playerid]));
+        }
+        else if (VosteraWorkCooldown(g_LastWork[playerid], currentTime))
+        {
+            format(status, sizeof status, "Next job in %d seconds.",
+                VOSTERA_WORK_COOLDOWN - (currentTime - g_LastWork[playerid]));
+        }
+        else if (g_PlayerJob[playerid] == VOSTERA_JOB_COURIER)
+        {
+            format(status, sizeof status, "Courier: return to the depot at spawn and use /work.");
+        }
+        else if (g_PlayerJob[playerid] == VOSTERA_JOB_MECHANIC)
+        {
+            format(status, sizeof status, "Mechanic: take a damaged vehicle to the spawn workshop.");
+        }
+        else
+        {
+            format(status, sizeof status, "Choose a job with /job courier or /job mechanic.");
+        }
+        SendClientMessage(playerid, VOSTERA_COLOR_INFO, status);
+        return 1;
+    }
     if (!strcmp(cmdtext, "/work", true))
     {
         if (g_PlayerJob[playerid] == VOSTERA_JOB_NONE)
@@ -242,7 +325,7 @@ public OnPlayerCommandText(playerid, cmdtext[])
             return 1;
         }
         new now = gettime();
-        if (g_LastWork[playerid] != 0 && now - g_LastWork[playerid] < VOSTERA_WORK_COOLDOWN)
+        if (VosteraWorkCooldown(g_LastWork[playerid], now))
         {
             new output[100];
             format(output, sizeof output, "Wait %d seconds before the next task.",
@@ -252,6 +335,13 @@ public OnPlayerCommandText(playerid, cmdtext[])
         }
         if (g_PlayerJob[playerid] == VOSTERA_JOB_COURIER)
         {
+            if (GetPlayerDistanceFromPoint(playerid,
+                VOSTERA_DEPOT_X, VOSTERA_DEPOT_Y, VOSTERA_DEPOT_Z) > VOSTERA_DEPOT_DISTANCE)
+            {
+                SendClientMessage(playerid, VOSTERA_COLOR_ERROR,
+                    "Courier routes start at the depot near the Los Santos spawn.");
+                return 1;
+            }
             new destination = g_WorkCount[playerid] % VOSTERA_DELIVERY_COUNT;
             if (!SetPlayerCheckpoint(playerid,
                 g_CourierStops[destination][0],
@@ -262,9 +352,10 @@ public OnPlayerCommandText(playerid, cmdtext[])
                 return 1;
             }
             g_CourierDestination[playerid] = destination;
+            g_DeliveryStart[playerid] = now;
             g_CourierActive[playerid] = true;
             SendClientMessage(playerid, VOSTERA_COLOR_INFO,
-                "Courier task started. Reach the red checkpoint to receive $125.");
+                "Courier route started at depot. Deliver within 10 min for $125.");
             return 1;
         }
         if (GetPlayerState(playerid) != PLAYER_STATE_DRIVER)
