@@ -1,0 +1,34 @@
+name: Сборка Pawn — оригинальный прототип
+
+on:
+  push:
+    paths:
+      - 'Мод/prototypes/**'
+      - 'Мод/tools/build-prototype.sh'
+      - '.github/workflows/pawn-starter.yml'
+  pull_request:
+    paths:
+      - 'Мод/prototypes/**'
+      - 'Мод/tools/build-prototype.sh'
+      - '.github/workflows/pawn-starter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pawn-starter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Скомпилировать оригинальный прототип Pawn
+        run: bash Мод/tools/build-prototype.sh
+      - name: Сохранить тестовый AMX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vostera-starter-amx
+          path: Мод/build/vostera_starter.amx
+          if-no-files-found: error
+          retention-days: 14
