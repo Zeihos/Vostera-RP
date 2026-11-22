@@ -20,6 +20,12 @@ checks={
     'Courier starts checkpoint': 'SetPlayerCheckpoint(playerid,' in src,
     'Courier completes after proximity': 'GetPlayerDistanceFromPoint(playerid,\n        g_CourierStops[destination][0]' in src,
     'Courier cancellation': 'VosteraCancelDelivery(playerid)' in src and '/cancelwork' in src,
+    'Depot gate': 'VOSTERA_DEPOT_DISTANCE' in src and
+        'GetPlayerDistanceFromPoint(playerid,\n                VOSTERA_DEPOT_X' in src,
+    'Route timeout': 'VosteraDeliveryExpired(g_DeliveryStart[playerid], gettime())' in src,
+    'Route start time reset': 'g_DeliveryStart[playerid] = 0;' in src,
+    'Work status': '/workstatus' in src,
+    'Runtime self test': 'VOSTERA-SELFTEST:PASS 7/7' in src,
     'No instant courier payment': 'VosteraCompleteWork(playerid, VOSTERA_COURIER_REWARD);' in src,
     'Mechanic driver check': 'GetPlayerState(playerid) != PLAYER_STATE_DRIVER' in src,
     'Mechanic damage threshold': 'GetVehicleHealth(vehicleid, health)' in src and 'health >= 950.0' in src,
