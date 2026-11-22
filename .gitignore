@@ -41,3 +41,6 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+
+# Pawn: тестовый AMX загружается как CI artifact, не в Git
+Мод/build/

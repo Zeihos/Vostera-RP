@@ -32,6 +32,8 @@ jobs:
         run: python3 tools/test_install_bootstrap.py
       - name: Проверить диагностику игрового мода
         run: python3 tools/test_mod_preflight.py
+      - name: Проверить оригинальный Pawn-прототип
+        run: python3 tools/test_pawn_starter.py
       - name: Проверить SA-MP мониторинг по протоколу open.mp
         run: php Сайт/tests/test_samp_query.php
       - name: Проверить права публикаций форума
