@@ -56,4 +56,32 @@ value "UPDATE vostera_accounts SET status='active' WHERE id=$a"
 value "UPDATE vostera_progress SET wallet=1999999990, last_paid_job_at=UTC_TIMESTAMP(6)-INTERVAL 91 SECOND WHERE account_id=$a"
 must_equal "$(award "$a" "$four" courier)" "wallet_limit" "Wallet cap enforced"
 must_equal "$(value "SELECT COUNT(*) FROM vostera_job_receipts")" "3" "Ledger contains only completed awards"
-echo "OK: MariaDB migrations, cooldown, idempotency, bans, limits"
+# Concurrent requests for the SAME completed event must not pay twice.
+value "UPDATE vostera_progress SET last_paid_job_at=UTC_TIMESTAMP(6)-INTERVAL 91 SECOND WHERE account_id=$b"
+five="00000000-0000-4000-8000-000000000005"
+temp="$(mktemp -d)"
+trap 'rm -rf "$temp"' EXIT
+award "$b" "$five" courier > "$temp/one" &
+pid1=$!
+award "$b" "$five" courier > "$temp/two" &
+pid2=$!
+wait "$pid1"
+wait "$pid2"
+statuses="$(cat "$temp/one" "$temp/two" | sort | tr '\n' ',' | sed 's/,$//')"
+must_equal "$statuses" "awarded,duplicate" "Concurrent duplicate event serialized"
+must_equal "$(value "SELECT CONCAT(wallet,':',completed_jobs) FROM vostera_progress WHERE account_id=$b")" "225:2" "Concurrent calls paid exactly once"
+must_equal "$(value "SELECT COUNT(*) FROM vostera_job_receipts")" "4" "Ledger reflects single concurrent payment"
+if value "INSERT INTO vostera_accounts(username,password_hash) VALUES('dev_test_alpha','TEST_ONLY_NOT_VALID')" >/dev/null 2>&1; then
+    echo "FAIL: username uniqueness/collation not enforced" >&2
+    exit 1
+fi
+echo "OK: case-insensitive unique username"
+if value "INSERT INTO vostera_progress(account_id) VALUES (99999999)" >/dev/null 2>&1; then
+    echo "FAIL: foreign key not enforced" >&2
+    exit 1
+fi
+echo "OK: progress foreign key"
+value "INSERT INTO vostera_accounts(username,password_hash) VALUES('Dev_Test_Gamma','TEST_ONLY_NOT_VALID')"
+gamma="$(value "SELECT id FROM vostera_accounts WHERE username='Dev_Test_Gamma'")"
+must_equal "$(award "$gamma" "00000000-0000-4000-8000-000000000006" courier)" "no_progress" "Missing progress is not silently created"
+echo "OK: MariaDB migrations, cooldown, idempotency, concurrent calls, bans, limits"
