@@ -30,7 +30,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libc6:i386 libstdc++6:i386
+          sudo apt-get install -y --no-install-recommends libc6:i386 libstdc++6:i386 libatomic1:i386
       - name: Проверить запуск open.mp и UDP-ответ
         run: bash Мод/tools/run-openmp-smoke.sh
       - name: Сохранить тестовый AMX
